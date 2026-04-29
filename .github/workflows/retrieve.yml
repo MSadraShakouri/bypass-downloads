@@ -29,9 +29,14 @@ jobs:
       - name: Push file to repo
         run: |
           mkdir -p downloads
-          mv "${{ env.DOWNLOADED_FILE }}" downloads/
+          # Move all downloaded files (not directories) into downloads/
+          find . -maxdepth 1 -type f -not -name 'README.md' -exec mv {} downloads/ \;
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add downloads/
-          git commit -m "Add ${{ env.DOWNLOADED_FILE }}"
-          git push
+          if ! git diff --staged --quiet; then
+            git commit -m "Add new file"
+            git push
+          else
+            echo "No changes to commit."
+          fi
