@@ -22,39 +22,20 @@ jobs:
           URL="${{ github.event.inputs.download_url }}"
           echo "Downloading: $URL"
           wget --content-disposition "$URL"
-          echo "DOWNLOADED=$(ls -t | head -1)" >> $GITHUB_ENV
+          # Capture the downloaded filename
+          DOWNLOADED_FILE=$(ls -t | head -1)
+          echo "DOWNLOADED_FILE=$DOWNLOADED_FILE" >> $GITHUB_ENV
 
-      - name: Prepare downloads folder
+      - name: Push file to repo
         run: |
           mkdir -p downloads
-          # Remove everything in downloads/ so only new files appear
-          rm -rf downloads/*
-
-      - name: Push single file or split parts
-        run: |
-          FILE="${{ env.DOWNLOADED }}"
-          SIZE=$(stat -c%s "$FILE")
-          MAX_SIZE=94371840   # 90 MiB in bytes (90 * 1024 * 1024)
-
-          if [ "$SIZE" -le "$MAX_SIZE" ]; then
-            echo "File size ($SIZE bytes) is ≤ 90 MB, pushing as single file."
-            mv "$FILE" downloads/
-          else
-            echo "File size ($SIZE bytes) exceeds 90 MB, splitting..."
-            ZIP_BASE="${FILE}.zip"
-            zip -s 90m "$ZIP_BASE" "$FILE"
-            # Split creates FILE.zip, FILE.z01, FILE.z02, ...
-            mv "$FILE".z* downloads/ 2>/dev/null
-            mv "$ZIP_BASE" downloads/
-            # Remove original large file (no longer needed)
-            rm "$FILE"
-          fi
-
+          # Move all downloaded files (not directories) into downloads/
+          find . -maxdepth 1 -type f -not -name 'README.md' -exec mv {} downloads/ \;
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add downloads/
           if ! git diff --staged --quiet; then
-            git commit -m "Add $FILE"
+            git commit -m "Add new file"
             git push
           else
             echo "No changes to commit."
