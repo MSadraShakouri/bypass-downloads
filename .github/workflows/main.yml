@@ -1,0 +1,14 @@
+name: Grab Termux API APK
+on: [workflow_dispatch]
+jobs:
+  get-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK from Termux release
+        run: |
+          wget "https://github.com/termux/termux-api/releases/download/v0.53.0/termux-api-app_v0.53.0+github.debug.apk"
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-api-apk
+          path: termux-api-app_v0.53.0+github.debug.apk
