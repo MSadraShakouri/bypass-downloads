@@ -1,4 +1,4 @@
-name: YouTube Video Downloader
+name: YouTube Video Downloader (pytube)
 
 on:
   workflow_dispatch:
@@ -20,13 +20,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup yt-dlp
-        uses: AnimMouse/setup-yt-dlp@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Download YouTube video
+      - name: Install pytube
+        run: pip install pytube
+
+      - name: Download video using pytube
         run: |
-          echo "Downloading: ${{ github.event.inputs.video_url }}"
-          yt-dlp -o "${{ github.event.inputs.output_filename }}" "${{ github.event.inputs.video_url }}"
+          import os, sys
+          from pytube import YouTube
+
+          url = "${{ github.event.inputs.video_url }}"
+          filename = "${{ github.event.inputs.output_filename }}"
+
+          print(f"Downloading: {url}")
+          try:
+              yt = YouTube(url)
+              # Pick the best stream that includes video+audio and fits under 95 MB if possible
+              stream = yt.streams.filter(progressive=True, file_extension='mp4') \
+                                 .order_by('resolution').desc().first()
+              if not stream:
+                  print("No progressive stream found, trying adaptive with audio...")
+                  # Fallback: adaptive + separate audio (more complex, but pytube can do it)
+                  video = yt.streams.filter(adaptive=True, file_extension='mp4').order_by('resolution').desc().first()
+                  audio = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
+                  video.download(filename='video.mp4')
+                  audio.download(filename='audio.mp3')
+                  sys.exit("Adaptive streams not yet merged, aborting.")
+              else:
+                  stream.download(filename=filename)
+              print("Download complete.")
+          except Exception as e:
+              print(f"Error: {e}")
+              sys.exit(1)
+        shell: python
 
       - name: Push video file to repo
         run: |
