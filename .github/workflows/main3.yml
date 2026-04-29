@@ -1,0 +1,28 @@
+name: Split APK and upload to repo
+on: [workflow_dispatch]
+permissions:
+  contents: write   # needed to push files back
+jobs:
+  split-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Termux API APK
+        run: |
+          wget "https://github.com/termux/termux-api/releases/download/v0.53.0/termux-api-app_v0.53.0+github.debug.apk"
+      
+      - name: Split APK into zip parts (20 MB each)
+        run: |
+          zip -s 20m termux-api.apk.zip termux-api-app_v0.53.0+github.debug.apk
+          # This creates termux-api.apk.z01, termux-api.apk.z02, ... and termux-api.apk.zip
+          ls -lh termux-api.apk.z* termux-api.apk.zip
+
+      - name: Commit and push the parts
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add termux-api.apk.z* termux-api.apk.zip
+          git commit -m "Add split APK parts" || echo "Nothing to commit"
+          git push
