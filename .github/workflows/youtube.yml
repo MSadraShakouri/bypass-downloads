@@ -1,0 +1,43 @@
+name: YouTube Video Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'YouTube Video URL'
+        required: true
+      output_filename:
+        description: 'Desired Output Filename (e.g., my-clip.mp4)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  download-video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup yt-dlp
+        uses: AnimMouse/setup-yt-dlp@v3
+
+      - name: Download YouTube video
+        run: |
+          echo "Downloading: ${{ github.event.inputs.video_url }}"
+          yt-dlp -o "${{ github.event.inputs.output_filename }}" "${{ github.event.inputs.video_url }}"
+
+      - name: Push video file to repo
+        run: |
+          mkdir -p downloads
+          mv "${{ github.event.inputs.output_filename }}" downloads/
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add downloads/
+          if ! git diff --staged --quiet; then
+            git commit -m "Add video ${{ github.event.inputs.output_filename }}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
