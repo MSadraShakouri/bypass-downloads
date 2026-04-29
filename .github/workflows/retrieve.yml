@@ -1,4 +1,4 @@
-name: Retrieve and Split File
+name: Retrieve Single File
 
 on:
   workflow_dispatch:
@@ -6,59 +6,31 @@ on:
       download_url:
         description: 'Direct download URL of the file'
         required: true
-      output_name:
-        description: 'Name for the final file (optional, defaults to original)'
-        required: false
-        default: ''
 
 permissions:
-  contents: write
+  contents: write   # needed to push a commit
 
 jobs:
-  fetch-split-push:
+  fetch-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download the file
+      - name: Download file
         run: |
           URL="${{ github.event.inputs.download_url }}"
           echo "Downloading: $URL"
           wget --content-disposition "$URL"
-          # The downloaded file name is saved in variable DOWNLOADED_FILE
-          DOWNLOADED_FILE=$(ls -t | head -1)
-          echo "DOWNLOADED_FILE=$DOWNLOADED_FILE" >> $GITHUB_ENV
+          # The downloaded file name is captured
+          echo "DOWNLOADED=$(ls -t | head -1)" >> $GITHUB_ENV
 
-      - name: Determine output name
+      - name: Push file to repo
         run: |
-          if [ -n "${{ github.event.inputs.output_name }}" ]; then
-            FINAL_NAME="${{ github.event.inputs.output_name }}"
-          else
-            FINAL_NAME="${{ env.DOWNLOADED_FILE }}"
-          fi
-          # Sanitize: remove spaces and special characters if needed
-          FINAL_NAME=$(echo "$FINAL_NAME" | tr ' ' '_')
-          echo "FINAL_NAME=$FINAL_NAME" >> $GITHUB_ENV
-
-      - name: Split into zip parts (max 20 MB each)
-        run: |
-          # Rename original file to its final name
-          mv "${{ env.DOWNLOADED_FILE }}" "${{ env.FINAL_NAME }}"
-          FILENAME="${{ env.FINAL_NAME }}"
-          ZIP_BASE="${FILENAME}.zip"
-          zip -s 20m "$ZIP_BASE" "$FILENAME"
-          echo "ZIP_BASE=$ZIP_BASE" >> $GITHUB_ENV
-
-      - name: Commit and push parts
-        run: |
+          mkdir -p downloads
+          mv "${{ env.DOWNLOADED }}" downloads/
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          # Put all parts in a subfolder to keep the repo tidy
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          FOLDER="downloads/$TIMESTAMP"
-          mkdir -p "$FOLDER"
-          mv ${{ env.ZIP_BASE }}* "$FOLDER/"
-          git add "$FOLDER"
-          git commit -m "Add split parts for ${{ env.FINAL_NAME }}"
+          git add downloads/
+          git commit -m "Add ${{ env.DOWNLOADED }}"
           git push
